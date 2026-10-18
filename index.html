@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>🇫🇷 Budget Monitor — data.gouv.fr</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.11.2/dist/dsfr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.11.2/dist/utility/utility.min.css">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --blue-france:#000091; --blue-france-hi:#1212ff; --blue-france-soft:#e3e3fd;
+  --red-marianne:#E1000F; --red-marianne-soft:#ffe9e9;
+  --white:#ffffff; --grey-50:#f6f6f6; --grey-100:#eeeeee;
+  --grey-200:#e5e5e5; --grey-500:#929292; --grey-700:#3a3a3a; --grey-900:#1e1e1e;
+  --green-bourgeon:#18753c; --green-emeraude:#00a95f; --yellow-tournesol:#ffb800;
+  --font-mono:'SF Mono',Menlo,Consolas,'Courier New',monospace;
+  --font-sans:'Marianne','system-ui',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+html{height:100%}
+body{font-family:var(--font-sans);background:var(--grey-50);color:var(--grey-900);
+  font-size:13px;line-height:1.5;min-height:100%;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--grey-100)}
+::-webkit-scrollbar-thumb{background:var(--grey-500);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--blue-france)}
+
+.marianne-band{height:6px;background:linear-gradient(to right,
+  var(--blue-france) 0%, var(--blue-france) 33.33%,
+  var(--white) 33.33%, var(--white) 66.66%,
+  var(--red-marianne) 66.66%, var(--red-marianne) 100%);}
+.bloc-marque{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--white);border-bottom:1px solid var(--grey-200);}
+.bloc-marque-logo{font-weight:700;font-size:13px;line-height:1.15;color:var(--grey-900);
+  letter-spacing:0.3px;text-transform:uppercase;border-right:1px solid var(--grey-200);padding-right:12px;}
+.bloc-marque-devise{font-size:10px;font-weight:400;color:var(--grey-700);line-height:1.3;letter-spacing:0.5px;}
+.bloc-marque-devise em{display:block;font-style:normal;text-transform:uppercase;letter-spacing:1.2px;font-size:9px;color:var(--grey-500);}
+
+.topbar{background:var(--white);border-bottom:1px solid var(--grey-200);
+  display:flex;align-items:center;padding:10px 16px;gap:12px;
+  position:sticky;top:6px;z-index:100;flex-wrap:wrap;box-shadow:0 2px 6px rgba(0,0,0,0.04);}
+.brand{font-size:14px;font-weight:700;color:var(--blue-france);letter-spacing:0.3px;
+  display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--green-emeraude);
+  box-shadow:0 0 0 3px rgba(0,169,95,0.2);animation:pulse 1.8s infinite;flex-shrink:0;}
+.brand .dot.offline{background:var(--red-marianne);box-shadow:0 0 0 3px rgba(225,0,15,0.2);animation:none;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}
+.brand .sub{color:var(--grey-500);font-weight:400;font-size:12px;font-family:var(--font-mono);}
+
+.tabs{display:flex;gap:4px;order:3;width:100%;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none}
+.tab{background:transparent;border:none;color:var(--grey-700);font-size:12px;font-weight:500;
+  padding:8px 14px;border-radius:4px;cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;
+  border-bottom:2px solid transparent;}
+.tab:hover{background:var(--blue-france-soft);color:var(--blue-france)}
+.tab.active{background:var(--blue-france-soft);color:var(--blue-france);
+  border-bottom-color:var(--blue-france);font-weight:700;}
+
+.topbar-right{margin-left:auto;display:flex;gap:14px;font-family:var(--font-mono);font-size:11px;
+  align-items:center;flex-wrap:wrap;order:2;}
+.topbar-stat{display:flex;gap:5px;color:var(--grey-700);align-items:center;white-space:nowrap;}
+.topbar-stat .val{color:var(--blue-france);font-weight:700;padding:2px 6px;border-radius:3px;background:var(--blue-france-soft);}
+.topbar-stat .val.green{color:var(--green-bourgeon);background:#b8fec9}
+.topbar-stat .val.amber{color:#8a5e00;background:#ffe9b8}
+.topbar-stat .val.red{color:var(--red-marianne);background:var(--red-marianne-soft)}
+
+.app{display:grid;grid-template-columns:280px 1fr 320px;height:calc(100vh - 130px);overflow:hidden;gap:0;}
+@media(max-width:1200px){.app{grid-template-columns:240px 1fr 280px}}
+
+.sidebar{background:var(--white);border-right:1px solid var(--grey-200);
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+.sb-head{padding:14px 16px;border-bottom:1px solid var(--grey-200);background:var(--grey-50);flex-shrink:0;}
+.sb-title{font-size:12px;font-weight:700;color:var(--blue-france);letter-spacing:0.5px;
+  text-transform:uppercase;display:flex;align-items:center;gap:8px;}
+.sb-title::before{content:'';width:4px;height:14px;background:var(--red-marianne);}
+.sb-count{font-family:var(--font-mono);font-size:11px;color:var(--grey-500);margin-top:6px;}
+
+.sb-search{padding:10px 14px;border-bottom:1px solid var(--grey-200);flex-shrink:0;}
+.sb-search input{width:100%;background:var(--white);border:1px solid var(--grey-200);
+  border-radius:4px;color:var(--grey-900);padding:9px 12px;font-size:13px;font-family:var(--font-sans);}
+.sb-search input:focus{outline:none;border-color:var(--blue-france);box-shadow:0 0 0 2px var(--blue-france-soft);}
+
+.sb-list{flex:1;overflow-y:auto;padding:8px;min-height:0;}
+.source-item{background:var(--white);border:1px solid var(--grey-200);border-left:4px solid var(--blue-france);
+  border-radius:4px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;}
+.source-item:hover{border-color:var(--blue-france);background:var(--blue-france-soft);transform:translateX(2px);}
+.source-item.active{background:var(--blue-france-soft);border-color:var(--blue-france);
+  border-left-color:var(--red-marianne);box-shadow:0 0 0 2px var(--blue-france-soft);}
+.source-item.active .source-item-name{color:var(--blue-france)}
+.source-item.active .status-dot{background:var(--blue-france);animation:pulse 1.8s infinite;}
+.source-item-h{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.source-item-icon{font-size:16px;flex-shrink:0}
+.source-item-name{font-size:12px;font-weight:700;color:var(--grey-900);flex:1;line-height:1.3;}
+.source-item-meta{display:flex;gap:8px;font-family:var(--font-mono);font-size:10px;
+  color:var(--grey-500);margin-top:4px;flex-wrap:wrap;}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:var(--green-emeraude);margin-right:4px;vertical-align:middle;}
+
+.center{background:var(--grey-50);display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+
+.search-bar{padding:14px 16px;background:var(--white);border-bottom:1px solid var(--grey-200);
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.search-bar input[type=text]{flex:1;min-width:200px;background:var(--white);
+  border:1px solid var(--grey-200);border-radius:4px;color:var(--grey-900);
+  padding:11px 14px;font-size:14px;font-family:var(--font-sans);}
+.search-bar input[type=text]:focus{outline:none;border-color:var(--blue-france);box-shadow:0 0 0 2px var(--blue-france-soft);}
+.search-bar select{background:var(--white);border:1px solid var(--grey-200);border-radius:4px;
+  color:var(--grey-900);padding:11px 12px;font-size:13px;font-family:var(--font-sans);}
+.search-bar select:focus{outline:none;border-color:var(--blue-france);box-shadow:0 0 0 2px var(--blue-france-soft);}
+.search-btn{background:var(--blue-france);color:var(--white);border:1px solid var(--blue-france);
+  font-size:13px;font-weight:700;padding:11px 20px;border-radius:4px;cursor:pointer;
+  letter-spacing:0.3px;transition:all 0.15s;white-space:nowrap;}
+.search-btn:hover{background:var(--blue-france-hi);border-color:var(--blue-france-hi);}
+.search-btn:disabled{opacity:0.5;cursor:not-allowed}
+
+.mode-tabs{display:flex;gap:0;padding:0 10px;border-bottom:1px solid var(--grey-200);
+  background:var(--white);flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
+.mode-tabs::-webkit-scrollbar{display:none}
+.mode-tab{background:transparent;border:none;color:var(--grey-700);font-size:12px;font-weight:500;
+  padding:10px 14px;cursor:pointer;letter-spacing:0.2px;transition:all 0.15s;
+  white-space:nowrap;border-bottom:3px solid transparent;}
+.mode-tab:hover{background:var(--grey-50);color:var(--blue-france)}
+.mode-tab.active{color:var(--blue-france);border-bottom-color:var(--blue-france);font-weight:700;}
+
+.results{flex:1;overflow-y:auto;padding:14px;min-height:0;}
+.result-card{background:var(--white);border:1px solid var(--grey-200);border-left:4px solid var(--blue-france);
+  border-radius:4px;padding:14px 16px;margin-bottom:10px;transition:all 0.15s;}
+.result-card:hover{border-color:var(--blue-france);box-shadow:0 4px 12px rgba(0,0,145,0.08);transform:translateX(2px);}
+.rc-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;}
+.rc-title{font-size:14px;font-weight:700;color:var(--grey-900);flex:1;line-height:1.35;}
+.rc-title a{color:var(--grey-900);text-decoration:none}
+.rc-title a:hover{color:var(--blue-france);text-decoration:underline;}
+.rc-badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;}
+.rc-badge{font-family:var(--font-mono);font-size:9px;font-weight:700;padding:3px 7px;
+  border-radius:3px;text-transform:uppercase;white-space:nowrap;letter-spacing:0.5px;}
+.rc-badge.dataset{background:var(--blue-france);color:var(--white)}
+.rc-badge.src{background:var(--grey-100);color:var(--grey-700);border:1px solid var(--grey-200)}
+.rc-badge.date{background:var(--green-emeraude);color:var(--white)}
+.rc-badge.pop{background:var(--yellow-tournesol);color:var(--grey-900)}
+.rc-badge.annee{background:var(--red-marianne);color:var(--white)}
+.rc-desc{font-size:12px;color:var(--grey-700);line-height:1.55;margin-bottom:8px;}
+.rc-meta{display:flex;gap:6px;font-family:var(--font-mono);font-size:10px;
+  color:var(--grey-500);flex-wrap:wrap;margin-top:8px;}
+.rc-meta .tag{background:var(--grey-50);padding:3px 8px;border-radius:3px;
+  border:1px solid var(--grey-200);color:var(--grey-700);}
+.rc-org{color:var(--grey-700);font-weight:600;font-size:12px;margin-bottom:6px;
+  display:flex;align-items:center;gap:6px;}
+
+.empty,.loading{text-align:center;padding:60px 20px;color:var(--grey-500);font-size:14px;}
+.spin{width:40px;height:40px;border:3px solid var(--grey-200);border-top-color:var(--blue-france);
+  border-radius:50%;animation:sp 0.8s linear infinite;margin:0 auto 14px;}
+@keyframes sp{to{transform:rotate(360deg)}}
+.error-box{background:var(--red-marianne-soft);border:1px solid var(--red-marianne);
+  border-left-width:4px;color:var(--red-marianne);padding:16px;border-radius:4px;
+  font-size:13px;margin:12px;}
+
+.pagination-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 14px;
+  background:var(--white);border-top:1px solid var(--grey-200);border-bottom:1px solid var(--grey-200);flex-shrink:0;}
+.pagination-info{font-family:var(--font-mono);font-size:11px;color:var(--grey-700);font-weight:600;}
+.pagination-info strong{color:var(--blue-france);font-size:13px}
+.pagination-spacer{flex:1}
+.page-btn{background:var(--white);color:var(--grey-900);border:1px solid var(--grey-200);
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:4px;cursor:pointer;
+  transition:all 0.15s;min-width:36px;display:inline-flex;align-items:center;justify-content:center;gap:4px;}
+.page-btn:hover:not(:disabled){border-color:var(--blue-france);color:var(--blue-france);background:var(--blue-france-soft);}
+.page-btn:disabled{opacity:0.4;cursor:not-allowed}
+.page-input{width:60px;text-align:center;padding:6px 8px;font-size:12px;font-family:var(--font-mono);
+  font-weight:700;border:1px solid var(--grey-200);border-radius:4px;background:var(--white);color:var(--blue-france);}
+.page-input:focus{outline:none;border-color:var(--blue-france);box-shadow:0 0 0 2px var(--blue-france-soft);}
+.page-select{background:var(--white);border:1px solid var(--grey-200);border-radius:4px;
+  color:var(--grey-900);padding:6px 8px;font-size:12px;font-family:var(--font-sans);}
+.page-select:focus{outline:none;border-color:var(--blue-france);}
+
+.export-group{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--grey-200);
+  background:var(--white);flex-shrink:0;}
+.export-btn{flex:1;background:var(--white);color:var(--grey-900);border:1px solid var(--grey-200);
+  font-size:12px;font-weight:600;padding:10px 14px;border-radius:4px;cursor:pointer;
+  transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.export-btn:hover{border-color:var(--blue-france);color:var(--blue-france);background:var(--blue-france-soft);}
+.export-btn:disabled{opacity:0.4;cursor:not-allowed}
+
+.right{background:var(--white);border-left:1px solid var(--grey-200);
+  display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+.rs-head{padding:14px 16px;border-bottom:1px solid var(--grey-200);background:var(--grey-50);
+  font-size:12px;font-weight:700;color:var(--blue-france);letter-spacing:0.5px;
+  text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.rs-head::before{content:'';width:4px;height:14px;background:var(--red-marianne);}
+.rs-body{flex:1;overflow-y:auto;padding:12px;min-height:0;}
+
+.intel-panel{background:var(--white);border:1px solid var(--grey-200);border-radius:4px;
+  margin-bottom:10px;overflow:hidden;}
+.intel-head{padding:9px 12px;background:var(--grey-50);border-bottom:1px solid var(--grey-200);
+  font-size:11px;font-weight:700;color:var(--blue-france);letter-spacing:0.5px;
+  text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;}
+.intel-body{padding:10px}
+.intel-row{display:flex;justify-content:space-between;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--grey-100);font-size:12px;}
+.intel-row:last-child{border-bottom:none}
+.intel-row .k{color:var(--grey-700)}
+.intel-row .v{color:var(--grey-900);font-weight:700;text-align:right;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px;
+  font-family:var(--font-mono);font-size:11px;}
+.intel-row .v.cyan{color:var(--blue-france)}
+.intel-row .v.green{color:var(--green-bourgeon)}
+.intel-row .v.amber{color:#8a5e00}
+.intel-row .v.red{color:var(--red-marianne)}
+
+.activity-item{display:flex;justify-content:space-between;padding:6px 0;
+  border-bottom:1px solid var(--grey-100);font-family:var(--font-mono);font-size:11px;}
+.activity-item:last-child{border-bottom:none}
+.activity-item .q{color:var(--grey-900);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:180px;font-weight:600;}
+.activity-item .t{color:var(--grey-500);flex-shrink:0;margin-left:8px;}
+
+@media(max-width:900px){
+  .app{display:flex;flex-direction:column;height:auto;min-height:calc(100vh - 130px)}
+  .sidebar{order:1;width:100%;border-right:none;border-bottom:1px solid var(--grey-200)}
+  .sb-list{max-height:240px}
+  .center{order:2;width:100%}
+  .results{max-height:60vh}
+  .right{order:3;width:100%;border-left:none;border-top:1px solid var(--grey-200);display:none}
+  .right.open{display:flex}
+  .tabs{order:3;width:100%}
+}
+@media(max-width:600px){
+  .bloc-marque{flex-direction:column;align-items:flex-start;padding:10px 12px}
+  .bloc-marque-logo{border-right:none;border-bottom:1px solid var(--grey-200);padding:0 0 6px 0}
+  .brand{font-size:13px;width:100%;justify-content:center}
+  .topbar-right{width:100%;justify-content:center;gap:12px;padding:6px 0;border-top:1px solid var(--grey-200)}
+  .search-bar{padding:12px}
+  .search-bar input[type=text]{font-size:13px}
+  .search-btn{padding:11px 14px;font-size:12px}
+  .result-card{padding:12px}
+  .rc-title{font-size:13px}
+  .rc-desc{font-size:11px}
+  .pagination-bar{padding:10px;gap:6px}
+  .page-btn{padding:5px 10px;font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<div class="marianne-band"></div>
+
+<div class="bloc-marque">
+  <div class="bloc-marque-logo">République<br>Française</div>
+  <div class="bloc-marque-devise">
+    <em>Liberté</em><em>Égalité</em><em>Fraternité</em>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="dot" id="statusDot"></span>
+    BUDGET MONITOR
+    <span class="sub">/ data.gouv.fr</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="search">🔍 Recherche</button>
+    <button class="tab" data-tab="categories">🏷️ Catégories</button>
+  </div>
+
+  <div class="topbar-right">
+    <div class="topbar-stat"><span>API</span><span class="val green" id="tbStatus">—</span></div>
+    <div class="topbar-stat"><span>LATENCE</span><span class="val amber" id="tbLatency">—</span></div>
+    <div class="topbar-stat"><span>RÉSULTATS</span><span class="val" id="tbCount">—</span></div>
+    <div class="topbar-stat"><span>UPTIME</span><span class="val" id="tbUptime">—</span></div>
+  </div>
+</div>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sb-head">
+      <div class="sb-title">🏷️ Catégories budget</div>
+      <div class="sb-count" id="sbCount">7 catégories</div>
+    </div>
+    <div class="sb-search">
+      <input type="text" id="sourceSearch" placeholder="🔍 Filtrer...">
+    </div>
+    <div class="sb-list" id="sbList"></div>
+  </aside>
+
+  <main class="center">
+
+    <div class="search-bar">
+      <input type="text" id="queryInput" placeholder="🔍 Rechercher un jeu de données budget…"
+             value="budget" autocomplete="off">
+      <select id="anneeSelect" title="Année">
+        <option value="">Toutes les années</option>
+        <option value="2026">2026</option>
+        <option value="2025">2025</option>
+        <option value="2024">2024</option>
+        <option value="2023">2023</option>
+        <option value="2022">2022</option>
+        <option value="2021">2021</option>
+      </select>
+      <select id="sortSelect" title="Tri">
+        <option value="recent">📅 Plus récents</option>
+        <option value="popularity">⭐ Populaires</option>
+        <option value="old">📆 Plus anciens</option>
+      </select>
+      <button class="search-btn" id="searchBtn">▶ LANCER</button>
+    </div>
+
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-view="results">📋 Résultats</button>
+      <button class="mode-tab" data-view="json">📄 JSON brut</button>
+      <button class="mode-tab" data-view="timing">⏱️ Timings</button>
+    </div>
+
+    <div class="pagination-bar" id="paginationBar" hidden>
+      <span class="pagination-info" id="paginationInfo">—</span>
+      <span class="pagination-spacer"></span>
+      <button class="page-btn" id="pageFirst" title="Première page">⏮</button>
+      <button class="page-btn" id="pagePrev" title="Page précédente">←</button>
+      <input type="number" class="page-input" id="pageInput" min="1" value="1" />
+      <span style="font-size:12px;color:var(--grey-500)" id="pageTotal">/ —</span>
+      <button class="page-btn" id="pageNext" title="Page suivante">→</button>
+      <button class="page-btn" id="pageLast" title="Dernière page">⏭</button>
+      <select class="page-select" id="pageSizeSelect" title="Résultats par page">
+        <option value="10">10 / page</option>
+        <option value="20" selected>20 / page</option>
+        <option value="50">50 / page</option>
+      </select>
+    </div>
+
+    <div class="results" id="resultsArea">
+      <div class="empty">
+        <div style="font-size:48px;margin-bottom:16px">🇫🇷</div>
+        <div style="font-weight:700;color:var(--grey-900);margin-bottom:8px;font-size:16px">
+          Budget Monitor data.gouv.fr
+        </div>
+        <div>Tape un mot-clé ou sélectionne une catégorie.</div>
+      </div>
+    </div>
+
+    <div class="export-group">
+      <button class="export-btn" id="exportCsv" disabled>📥 Export CSV</button>
+      <button class="export-btn" id="exportJson" disabled>📥 Export JSON</button>
+      <button class="export-btn" id="clearBtn">🗑️ Effacer</button>
+    </div>
+  </main>
+
+  <aside class="right" id="rightPanel">
+    <div class="rs-head">Intelligence</div>
+    <div class="rs-body">
+
+      <div class="intel-panel">
+        <div class="intel-head"><span>💚 ÉTAT DE L'API</span></div>
+        <div class="intel-body">
+          <div class="intel-row"><span class="k">Endpoint</span><span class="v cyan" id="ivEndpoint">—</span></div>
+          <div class="intel-row"><span class="k">Statut</span><span class="v green" id="ivStatus">—</span></div>
+          <div class="intel-row"><span class="k">Latence</span><span class="v amber" id="ivLatency">—</span></div>
+          <div class="intel-row"><span class="k">Dernier ping</span><span class="v" id="ivLastPing">—</span></div>
+          <div class="intel-row"><span class="k">Uptime session</span><span class="v cyan" id="ivUptime">—</span></div>
+        </div>
+      </div>
+
+      <div class="intel-panel">
+        <div class="intel-head"><span>🏷️ CATÉGORIE ACTIVE</span></div>
+        <div class="intel-body">
+          <div class="intel-row"><span class="k">Nom</span><span class="v cyan" id="ivCat">—</span></div>
+          <div class="intel-row"><span class="k">Requête</span><span class="v" id="ivCatQuery">—</span></div>
+          <div class="intel-row"><span class="k">Statut</span><span class="v green" id="ivCatStatus">Aucune</span></div>
+        </div>
+      </div>
+
+      <div class="intel-panel">
+        <div class="intel-head"><span>📊 DERNIÈRE RECHERCHE</span></div>
+        <div class="intel-body">
+          <div class="intel-row"><span class="k">Requête</span><span class="v cyan" id="ivQuery">—</span></div>
+          <div class="intel-row"><span class="k">Année</span><span class="v amber" id="ivAnnee">—</span></div>
+          <div class="intel-row"><span class="k">Résultats</span><span class="v green" id="ivCount">—</span></div>
+          <div class="intel-row"><span class="k">Page</span><span class="v amber" id="ivPage">—</span></div>
+          <div class="intel-row"><span class="k">Temps total</span><span class="v amber" id="ivTime">—</span></div>
+          <div class="intel-row"><span class="k">Datasets affichés</span><span class="v" id="ivDatasets">—</span></div>
+        </div>
+      </div>
+
+      <div class="intel-panel">
+        <div class="intel-head"><span>🕐 ACTIVITÉ RÉCENTE</span></div>
+        <div class="intel-body" id="activityList">
+          <div style="text-align:center;color:var(--grey-500);font-size:11px;padding:8px">
+            Aucune activité
+          </div>
+        </div>
+      </div>
+
+      <div class="intel-panel">
+        <div class="intel-head"><span>⚙️ CONFIGURATION</span></div>
+        <div class="intel-body">
+          <div class="intel-row"><span class="k">API</span><span class="v cyan" id="cfgBackend">—</span></div>
+          <div class="intel-row"><span class="k">Tri défaut</span><span class="v">📅 Récence</span></div>
+          <div class="intel-row"><span class="k">Mode</span><span class="v" id="cfgMode">—</span></div>
+          <div class="intel-row"><span class="k">Cache</span><span class="v green">localStorage</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+// =========================================================================
+// API data.gouv.fr v2 (publique, sans clé)
+// =========================================================================
+const API_V2 = 'https://www.data.gouv.fr/api/2/datasets/search/';
+const PING_INTERVAL = 30000;
+
+// =========================================================================
+// Catégories budget : chaque catégorie = un mot-clé injecté dans la requête
+// =========================================================================
+const CATEGORIES = [
+  { id: "plf",          nom: "PLF / Budget de l'État", icon: "🏛️", color: "#000091", query: "PLF" },
+  { id: "budget-vert",  nom: "Budget vert",            icon: "🌿", color: "#18753c", query: "budget vert" },
+  { id: "collectivites",nom: "Collectivités locales",  icon: "🏘️", color: "#3b82f6", query: "budget collectivité" },
+  { id: "communes",     nom: "Communes",               icon: "🏙️", color: "#ffb800", query: "budget commune" },
+  { id: "depenses",     nom: "Dépenses fiscales",      icon: "💸", color: "#E1000F", query: "dépenses fiscales" },
+  { id: "comptes",      nom: "Comptes publics",        icon: "📊", color: "#a855f7", query: "comptes publics" },
+  { id: "invest",       nom: "Investissement local",   icon: "🏗️", color: "#ff6b00", query: "investissement public local" },
+];
+
+const state = {
+  apiBase: API_V2,
+  lastQuery: '',
+  lastResults: [],
+  lastResponseTime: 0,
+  uptimeStart: Date.now(),
+  activities: [],
+  activeCategorie: null,
+  currentPage: 1,
+  pageSize: 20,
+  totalResults: 0,
+};
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function formatUptime(ms){
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+function extraireAnnee(item){
+  const txt = `${item.title || ''} ${item.slug || ''} ${(item.tags||[]).join(' ')}`;
+  const m = txt.match(/\b(20\d{2})\b/);
+  return m ? m[1] : null;
+}
+
+// =========================================================================
+// Ping API (HEAD sur une recherche vide)
+// =========================================================================
+async function pingBackend(){
+  const start = performance.now();
+  const dot = document.getElementById('statusDot');
+  try {
+    const r = await fetch(`${API_V2}?q=&page=1&page_size=1`, { method: 'GET', cache: 'no-store' });
+    const latency = Math.round(performance.now() - start);
+    if (r.ok){
+      dot.classList.remove('offline');
+      document.getElementById('tbStatus').textContent = 'ONLINE';
+      document.getElementById('tbStatus').className = 'val green';
+      document.getElementById('ivStatus').textContent = '● EN LIGNE';
+      document.getElementById('ivStatus').className = 'v green';
+      document.getElementById('ivLatency').textContent = latency + ' ms';
+      document.getElementById('ivLatency').className = 'v ' + (latency < 300 ? 'green' : latency < 800 ? 'amber' : 'red');
+      document.getElementById('tbLatency').textContent = latency + ' ms';
+      document.getElementById('tbLatency').className = 'val ' + (latency < 300 ? 'green' : latency < 800 ? 'amber' : 'red');
+      document.getElementById('ivLastPing').textContent = new Date().toLocaleTimeString('fr-FR');
+    } else {
+      throw new Error('HTTP ' + r.status);
+    }
+  } catch(err){
+    dot.classList.add('offline');
+    document.getElementById('tbStatus').textContent = 'OFFLINE';
+    document.getElementById('tbStatus').className = 'val red';
+    document.getElementById('ivStatus').textContent = '● HORS LIGNE';
+    document.getElementById('ivStatus').className = 'v red';
+    document.getElementById('ivLatency').textContent = '—';
+    document.getElementById('tbLatency').textContent = '—';
+  }
+}
+
+// =========================================================================
+// Sidebar catégories
+// =========================================================================
+function renderCategories(){
+  const list = document.getElementById('sbList');
+  const search = document.getElementById('sourceSearch').value.toLowerCase();
+  const filtered = CATEGORIES.filter(c =>
+    c.nom.toLowerCase().includes(search) || c.id.includes(search)
+  );
+
+  document.getElementById('sbCount').textContent =
+    `${CATEGORIES.length} catégories · ${filtered.length} affichées`;
+
+  if (!filtered.length){
+    list.innerHTML = '<div class="loading" style="padding:20px;font-size:11px">Aucune catégorie</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(c => `
+    <div class="source-item ${state.activeCategorie === c.id ? 'active' : ''}"
+         data-id="${c.id}" title="${escapeHtml(c.query)}">
+      <div class="source-item-h">
+        <span class="source-item-icon" style="color:${c.color}">${c.icon}</span>
+        <span class="source-item-name">${escapeHtml(c.nom)}</span>
+      </div>
+      <div class="source-item-meta">
+        <span class="status-dot"></span>
+        <span>${state.activeCategorie === c.id ? '● FILTRE ACTIF' : 'Cliquer pour filtrer'}</span>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.source-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      state.activeCategorie = (state.activeCategorie === id) ? null : id;
+      updateCategoriePanel();
+      renderCategories();
+      runSearch(1);
+    });
+  });
+}
+
+function updateCategoriePanel(){
+  const c = CATEGORIES.find(x => x.id === state.activeCategorie);
+  document.getElementById('ivCat').textContent = c ? c.nom : '—';
+  document.getElementById('ivCatQuery').textContent = c ? c.query : '—';
+  document.getElementById('ivCatStatus').textContent = c ? '● ACTIF' : 'Aucune';
+  document.getElementById('ivCatStatus').className = 'v ' + (c ? 'green' : '');
+}
+
+// =========================================================================
+// Recherche principale
+// =========================================================================
+async function runSearch(page = 1){
+  const q = document.getElementById('queryInput').value.trim();
+  const annee = document.getElementById('anneeSelect').value;
+  const sort = document.getElementById('sortSelect').value;
+  const cat = CATEGORIES.find(x => x.id === state.activeCategorie);
+
+  // Construction de la requête : q + catégorie + année
+  const mots = [q];
+  if (cat) mots.push(cat.query);
+  if (annee) mots.push(annee);
+  const requete = mots.filter(Boolean).join(' ');
+
+  if (!requete){
+    showResults(`<div class="empty">Tape un mot-clé ou sélectionne une catégorie.</div>`);
+    return;
+  }
+
+  state.currentPage = page;
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ RECHERCHE...';
+
+  showResults(`
+    <div class="loading">
+      <div class="spin"></div>
+      Recherche « ${escapeHtml(requete)} » — page ${page}...
+    </div>
+  `);
+
+  const start = performance.now();
+
+  try {
+    const params = new URLSearchParams({
+      q: requete,
+      page: page,
+      page_size: state.pageSize,
+    });
+    // Tri côté API si possible
+    if (sort === 'recent')      params.set('sort', '-created');
+    else if (sort === 'old')    params.set('sort', 'created');
+
+    const r = await fetch(`${API_V2}?${params}`);
+    const elapsed = Math.round(performance.now() - start);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+
+    let items = data.data || [];
+    state.totalResults = data.total || items.length;
+
+    // Tri client (au cas où l'API ne respecte pas)
+    if (sort === 'popularity'){
+      const score = x => (x.metrics?.views || 0) + 2 * (x.metrics?.resources_downloads || 0);
+      items.sort((a, b) => score(b) - score(a));
+    } else if (sort === 'old'){
+      items.sort((a, b) => (a.last_update || '').localeCompare(b.last_update || ''));
+    } else {
+      items.sort((a, b) => (b.last_update || '').localeCompare(a.last_update || ''));
+    }
+
+    state.lastQuery = requete;
+    state.lastResults = items;
+    state.lastResponseTime = elapsed;
+
+    // Panneau Intelligence
+    const datasets = items.length;
+    document.getElementById('tbCount').textContent = state.totalResults;
+    document.getElementById('ivQuery').textContent = requete;
+    document.getElementById('ivAnnee').textContent = annee || 'Toutes';
+    document.getElementById('ivCount').textContent = state.totalResults;
+    document.getElementById('ivPage').textContent = `${page} / ${Math.max(1, Math.ceil(state.totalResults / state.pageSize))}`;
+    document.getElementById('ivTime').textContent = elapsed + ' ms';
+    document.getElementById('ivDatasets').textContent = datasets;
+
+    document.getElementById('exportCsv').disabled = false;
+    document.getElementById('exportJson').disabled = false;
+
+    state.activities.unshift({ q: requete, count: state.totalResults, time: new Date() });
+    state.activities = state.activities.slice(0, 10);
+    renderActivities();
+
+    renderResults(items, requete, state.totalResults);
+    updatePaginationUI();
+    document.getElementById('resultsArea').scrollTop = 0;
+
+  } catch(err){
+    showResults(`
+      <div class="error-box">
+        <strong>❌ Erreur :</strong> ${escapeHtml(err.message)}<br><br>
+        <span style="color:var(--grey-700)">Vérifie ta connexion internet. L'API data.gouv.fr est publique.</span>
+      </div>
+    `);
+    document.getElementById('paginationBar').hidden = true;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ LANCER';
+  }
+}
+
+function showResults(html){
+  document.getElementById('resultsArea').innerHTML = html;
+}
+
+function renderResults(items, requete, total){
+  if (!items.length){
+    showResults(`<div class="empty">Aucun résultat pour « ${escapeHtml(requete)} ».</div>`);
+    return;
+  }
+
+  const html = items.map(item => {
+    const titre = item.title || item.id;
+    const url = item.page || `https://www.data.gouv.fr/datasets/${item.id}`;
+    const org = item.organization?.name || '';
+    const vues = item.metrics?.views ? `👁 ${item.metrics.views.toLocaleString('fr-FR')}` : '';
+    const dl = item.metrics?.resources_downloads ? `⬇ ${item.metrics.resources_downloads.toLocaleString('fr-FR')}` : '';
+    const date = item.last_update ? item.last_update.slice(0, 10) : '';
+    const annee = extraireAnnee(item);
+    const tags = (item.tags || []).slice(0, 5)
+      .map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+
+    const badges = `
+      <span class="rc-badge dataset">DATASET</span>
+      ${annee ? `<span class="rc-badge annee">${annee}</span>` : ''}
+      ${date ? `<span class="rc-badge date">📅 ${date}</span>` : ''}
+      ${item.metrics?.views ? `<span class="rc-badge pop">★ ${item.metrics.views.toLocaleString('fr-FR')}</span>` : ''}
+    `;
+
+    return `
+      <div class="result-card">
+        <div class="rc-head">
+          <div class="rc-title">
+            <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(titre)}</a>
+          </div>
+          <div class="rc-badges">${badges}</div>
+        </div>
+        ${org ? `<div class="rc-org">🏛️ ${escapeHtml(org)}</div>` : ''}
+        ${item.description ? `<div class="rc-desc">${escapeHtml(item.description.slice(0, 280))}</div>` : ''}
+        <div class="rc-meta">
+          ${vues ? `<span class="tag">${vues}</span>` : ''}
+          ${dl ? `<span class="tag">${dl}</span>` : ''}
+          ${tags}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const cat = CATEGORIES.find(x => x.id === state.activeCategorie);
+  const filtre = cat ? ` · 🏷️ ${escapeHtml(cat.nom)}` : '';
+
+  const header = `
+    <div style="font-size:12px;color:var(--grey-700);
+                margin-bottom:12px;padding:10px 14px;background:var(--white);
+                border-radius:4px;border-left:4px solid var(--blue-france);
+                box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+      <strong style="color:var(--blue-france)">${total.toLocaleString('fr-FR')} résultat(s)</strong>
+      pour « ${escapeHtml(requete)} »${filtre}
+      · page ${state.currentPage}
+    </div>
+  `;
+  showResults(header + html);
+}
+
+function updatePaginationUI(){
+  const bar = document.getElementById('paginationBar');
+  const info = document.getElementById('paginationInfo');
+  const input = document.getElementById('pageInput');
+  const total = document.getElementById('pageTotal');
+  const first = document.getElementById('pageFirst');
+  const prev = document.getElementById('pagePrev');
+  const next = document.getElementById('pageNext');
+  const last = document.getElementById('pageLast');
+
+  const totalPages = Math.max(1, Math.ceil(state.totalResults / state.pageSize));
+  const current = state.currentPage;
+
+  info.innerHTML = `<strong>${state.totalResults.toLocaleString('fr-FR')}</strong> résultats · page <strong>${current}</strong> / ${totalPages}`;
+  input.value = current;
+  input.max = totalPages;
+  total.textContent = `/ ${totalPages}`;
+
+  first.disabled = current <= 1;
+  prev.disabled = current <= 1;
+  next.disabled = current >= totalPages;
+  last.disabled = current >= totalPages;
+
+  bar.hidden = false;
+}
+
+function renderActivities(){
+  const el = document.getElementById('activityList');
+  if (!state.activities.length){
+    el.innerHTML = '<div style="text-align:center;color:var(--grey-500);font-size:11px;padding:8px">Aucune activité</div>';
+    return;
+  }
+  el.innerHTML = state.activities.map(a => `
+    <div class="activity-item">
+      <span class="q">"${escapeHtml(a.q)}" → ${a.count}</span>
+      <span class="t">${a.time.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}</span>
+    </div>
+  `).join('');
+}
+
+// =========================================================================
+// Événements pagination
+// =========================================================================
+document.getElementById('pageFirst').addEventListener('click', () => runSearch(1));
+document.getElementById('pagePrev').addEventListener('click', () => runSearch(Math.max(1, state.currentPage - 1)));
+document.getElementById('pageNext').addEventListener('click', () => runSearch(state.currentPage + 1));
+document.getElementById('pageLast').addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(state.totalResults / state.pageSize));
+  runSearch(totalPages);
+});
+document.getElementById('pageInput').addEventListener('change', (e) => {
+  const p = parseInt(e.target.value) || 1;
+  const totalPages = Math.max(1, Math.ceil(state.totalResults / state.pageSize));
+  runSearch(Math.max(1, Math.min(totalPages, p)));
+});
+document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+  state.pageSize = parseInt(e.target.value);
+  runSearch(1);
+});
+
+// =========================================================================
+// Onglets topbar
+// =========================================================================
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    if (t.dataset.tab === 'search'){
+      document.getElementById('resultsArea').style.display = 'block';
+    } else if (t.dataset.tab === 'categories'){
+      document.getElementById('resultsArea').innerHTML = `
+        <div class="empty">
+          <div style="font-size:48px;margin-bottom:14px">🏷️</div>
+          <div style="font-weight:700;color:var(--grey-900);margin-bottom:10px;font-size:16px">
+            ${CATEGORIES.length} catégories budget
+          </div>
+          <div style="font-size:13px;line-height:2;margin-top:16px;text-align:left;
+                      max-width:560px;margin-left:auto;margin-right:auto">
+            ${CATEGORIES.map(c => `
+              <div style="padding:6px 0;border-bottom:1px solid var(--grey-100)">
+                <span style="font-size:18px">${c.icon}</span>
+                <strong style="color:var(--grey-900);margin-left:6px">${c.nom}</strong>
+                <div style="font-family:var(--font-mono);font-size:10px;
+                            color:var(--blue-france);margin-left:28px;margin-top:2px;">
+                  requête : ${c.query}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:20px;font-size:12px;color:var(--grey-500)">
+            Clique sur une catégorie dans la sidebar pour filtrer.
+          </div>
+        </div>
+      `;
+    }
+  });
+});
+
+// =========================================================================
+// Onglets mode (résultats / json / timings)
+// =========================================================================
+let currentView = 'results';
+document.querySelectorAll('.mode-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.mode-tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    currentView = t.dataset.view;
+    if (currentView === 'json'){
+      showResults(`<pre style="font-family:var(--font-mono);font-size:11px;
+        color:var(--grey-700);background:var(--white);padding:16px;border-radius:4px;
+        overflow-x:auto;border:1px solid var(--grey-200);max-height:70vh;line-height:1.5">
+${escapeHtml(JSON.stringify(state.lastResults.slice(0, 5), null, 2))}
+      </pre>`);
+    } else if (currentView === 'timing'){
+      showResults(`
+        <div class="intel-panel" style="max-width:420px">
+          <div class="intel-head"><span>⏱️ TIMINGS DERNIÈRE RECHERCHE</span></div>
+          <div class="intel-body">
+            <div class="intel-row"><span class="k">Requête</span><span class="v cyan">${escapeHtml(state.lastQuery || '—')}</span></div>
+            <div class="intel-row"><span class="k">Page</span><span class="v cyan">${state.currentPage}</span></div>
+            <div class="intel-row"><span class="k">Temps total</span><span class="v green">${state.lastResponseTime} ms</span></div>
+            <div class="intel-row"><span class="k">Résultats affichés</span><span class="v amber">${state.lastResults.length}</span></div>
+            <div class="intel-row"><span class="k">Total API</span><span class="v">${state.totalResults.toLocaleString('fr-FR')}</span></div>
+          </div>
+        </div>
+      `);
+    } else {
+      if (state.lastResults.length){
+        renderResults(state.lastResults, state.lastQuery, state.totalResults);
+        updatePaginationUI();
+      } else {
+        showResults(`<div class="empty">Lance une recherche pour voir les résultats.</div>`);
+      }
+    }
+  });
+});
+
+// =========================================================================
+// Export CSV / JSON (côté client, à partir des résultats chargés)
+// =========================================================================
+function exporterCsv(){
+  if (!state.lastResults.length) return;
+  const lignes = [
+    ['id','titre','organisation','url','tags','last_update','vues','telechargements','description']
+  ];
+  state.lastResults.forEach(it => {
+    lignes.push([
+      it.id,
+      it.title || '',
+      it.organization?.name || '',
+      it.page || `https://www.data.gouv.fr/datasets/${it.id}`,
+      (it.tags || []).join(' | '),
+      it.last_update || '',
+      it.metrics?.views || 0,
+      it.metrics?.resources_downloads || 0,
+      (it.description || '').replace(/\s+/g, ' ').slice(0, 500),
+    ]);
+  });
+  const csv = lignes.map(l => l.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(["\uFEFF" + csv], {type: 'text/csv;charset=utf-8'});
+  telecharger(blob, `budget_${state.lastQuery.replace(/\s+/g,'_').slice(0,30)}.csv`);
+}
+
+function exporterJson(){
+  if (!state.lastResults.length) return;
+  const json = JSON.stringify({
+    query: state.lastQuery,
+    total: state.totalResults,
+    page: state.currentPage,
+    results: state.lastResults,
+  }, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  telecharger(blob, `budget_${state.lastQuery.replace(/\s+/g,'_').slice(0,30)}.json`);
+}
+
+function telecharger(blob, nom){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nom;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('exportCsv').addEventListener('click', exporterCsv);
+document.getElementById('exportJson').addEventListener('click', exporterJson);
+
+// =========================================================================
+// Effacer
+// =========================================================================
+document.getElementById('clearBtn').addEventListener('click', () => {
+  state.lastResults = [];
+  state.lastQuery = '';
+  state.activeCategorie = null;
+  state.totalResults = 0;
+  state.currentPage = 1;
+  document.getElementById('tbCount').textContent = '—';
+  document.getElementById('ivQuery').textContent = '—';
+  document.getElementById('ivCount').textContent = '—';
+  document.getElementById('ivPage').textContent = '—';
+  document.getElementById('ivTime').textContent = '—';
+  document.getElementById('exportCsv').disabled = true;
+  document.getElementById('exportJson').disabled = true;
+  document.getElementById('paginationBar').hidden = true;
+  updateCategoriePanel();
+  renderCategories();
+  showResults(`
+    <div class="empty">
+      <div style="font-size:48px;margin-bottom:16px">🇫🇷</div>
+      <div style="font-weight:700;color:var(--grey-900);margin-bottom:8px;font-size:16px">
+        Budget Monitor data.gouv.fr
+      </div>
+      <div>Tape un mot-clé ou sélectionne une catégorie.</div>
+    </div>
+  `);
+});
+
+// =========================================================================
+// Init
+// =========================================================================
+document.getElementById('searchBtn').addEventListener('click', () => runSearch(1));
+document.getElementById('queryInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') runSearch(1);
+});
+document.getElementById('anneeSelect').addEventListener('change', () => runSearch(1));
+document.getElementById('sortSelect').addEventListener('change', () => runSearch(1));
+document.getElementById('sourceSearch').addEventListener('input', renderCategories);
+
+setInterval(() => {
+  const uptime = Date.now() - state.uptimeStart;
+  document.getElementById('ivUptime').textContent = formatUptime(uptime);
+  document.getElementById('tbUptime').textContent = formatUptime(uptime);
+}, 1000);
+
+function init(){
+  document.getElementById('cfgBackend').textContent = 'data.gouv.fr/api/2';
+  document.getElementById('ivEndpoint').textContent = 'www.data.gouv.fr/api/2';
+  document.getElementById('cfgMode').textContent = 'budget-monitor';
+  renderCategories();
+  updateCategoriePanel();
+  pingBackend();
+  setInterval(pingBackend, PING_INTERVAL);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
